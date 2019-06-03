@@ -1,0 +1,478 @@
+<!Gary Gao
+June 3>
+<!This is a plane game, after click enter game then press the space bar, user can use mouse to move the plane around the screen to shoot enemy planes. Try to survive as long as you can!>
+<!SPACE BAR is for pause and countinue>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Plane Game</title>
+	<script src="plane.js"></script>
+</head>
+<body>
+	<style>
+	*{
+	margin: 0;
+	padding: 0;
+}
+#game{
+	width: 320px;
+	height: 568px;
+	margin: auto;
+	overflow: hidden;
+}
+#gameStart{
+	width: 100%;
+	height: 100%;
+	background: url(image/background_1.png);
+	position: relative;
+	/*display: none;*/
+}
+#gameStart span{
+	width: 160px;
+	height: 40px;
+	display: block;
+	background: rgba(196,201,202);
+	border: 4px solid #666;
+	box-sizing: border-box;
+	text-align: center;
+	line-height: 32px;
+	font-size: 24px;
+	font-weight: bolder;
+	position: absolute;
+	left: 80px;
+	bottom: 200px;
+	cursor: pointer;
+}
+#gameStart span:hover{
+	color: #fff;
+}
+#gameEnter{
+	width: 100%;
+	height: 100%;
+	background: url(image/background_1.png);
+	position: relative;
+	display: none;
+}
+#myPlane{
+	width: 66px;
+	height: 80px;
+	position: absolute;
+	left: 127px;
+	bottom: 0;
+	cursor: pointer;
+}
+#myPlane{
+	width: 66px;
+	height: 80px;
+}
+#myPlane img{
+	cursor: move;
+}
+#bullets,#enemys{
+	width: 100%;
+	height: 100%;
+	position: absolute;
+	left: 0;
+	top: 0;
+}
+.b{
+	width: 6px;
+	height: 14px;
+	position: absolute;
+}
+.e{
+	position: absolute;
+}
+#scores{
+	width: 100%;
+	height: 40px;
+	line-height: 40px;
+	font-size: 24px;
+	font-weight: bolder;
+	padding: 0 20px;
+}
+#scores p{
+	text-align: right;
+	width: 80%;
+}
+	</style>
+	<div id="game">
+		<div id="gameStart">
+			<span>Click Here then press SPACE to start</span>
+		</div>
+		<div id="gameEnter">
+			<div id="myPlane">
+				<img src="image/my.gif" alt="">
+			</div>
+			<div id="bullets">
+			</div>
+			<div id="enemys"></div>
+			<div id="scores">
+				<p>Score: <span>0</span> </p>
+			</div>
+		</div>
+	</div>
+	<script>
+	;window.onload = function(){
+	// Method to get the tag element
+	function $(idName){
+		return document.getElementById(idName);
+	}
+	//Get the function that USES the final value for the style
+	function getStyle(ele,attr){
+		var res = null;
+		if(ele.currentStyle){
+			res = ele.currentStyle[attr];
+		}else{
+			res = window.getComputedStyle(ele,null)[attr];
+		}
+		return parseFloat(res);
+	}
+	// Gets the tag element that needs to be used
+	var game = $("game")
+	// Game start interface
+	,	gameStart = $("gameStart")
+	// Game entered interface
+	,	gameEnter = $("gameEnter")
+	,	myPlane = $("myPlane")
+	,	bulletsP = $("bullets")
+	,	enemysP = $("enemys")
+	,	s = $("scores").firstElementChild.firstElementChild;
+	// 1、Get the width and height of the game interface
+	var gameW = getStyle(game,"width")
+	,	gameH = getStyle(game,"height");
+	// 2、The upper left margin of the game interface
+	var gameML = getStyle(game,"marginLeft")
+	,	gameMT = getStyle(game,"marginTop");
+	// 3、Get the width and height of player's plane
+	var myPlaneW = getStyle(myPlane,"width")
+	,	myPlaneH = getStyle(myPlane,"height");
+	// 4、With and height of the bullet
+	var bulletW = 6
+	,	bulletH = 14;
+
+	// Declear global variable
+	var gameStatus = false // Curent game condition
+	,	a = null // Timer for creating bullets
+	,	b = null // Timmer for creating enemy plane
+	,	c = null // Background image of motion timer
+	,	backgroundPY = 0 // Background figure y axis values
+	,	bullets = []
+	,	enemys = [] 
+	,	scores = 0 // score
+	;
+
+
+	// Game start
+	gameStart.firstElementChild.onclick = function(){
+		gameStart.style.display = "none";
+		gameEnter.style.display = "block";
+		// Adds keyboard events to the current document
+		document.onkeyup = function(evt){
+			var e = evt || window.event;
+			// Gets which key is pressed
+			var keyVal = e.keyCode;
+			if(keyVal == 32){
+				if(!gameStatus){
+					// initializing score
+					scores = 0;
+					// game start
+					this.onmousemove = myPlaneMove;
+					// Implement the movement of the background image after starting the game
+					bgMove();
+					//shooting
+					shot();
+					// enemy plane appear
+					appearEnemy();
+					// Start the game after pausing the game
+					// The bullet continue to move
+					if(bullets.length != 0) reStart(bullets,1);
+					// Enemy continue move
+					if(enemys.length != 0) reStart(enemys);
+				}else{
+					// pause game
+					this.onmousemove = null;
+					// Clear timers for creating enemy planes and bullets
+					clearInterval(a);
+					clearInterval(b);
+					clearInterval(c);
+					a = null;
+					b = null;
+					c = null;
+					clear(bullets);
+					clear(enemys);
+				}
+				gameStatus = !gameStatus;
+			}
+		}
+	}
+	// player plane move
+	function myPlaneMove(evt){
+		var e = evt || window.event;
+		// get the mouse moving position
+		var mouse_x = e.x || e.pageX
+		,	mouse_y = e.y || e.pageY;
+
+		// Calculate the upper left distance of the plane when the mouse moves
+		var last_myPlane_left = mouse_x - gameML - myPlaneW/2
+		,	last_myPlane_top = mouse_y - gameMT - myPlaneH/2;
+		// plane can't move out of the page
+		if(last_myPlane_left <= 0){
+			last_myPlane_left = 0;
+		}else if(last_myPlane_left >= gameW - myPlaneW){
+			last_myPlane_left = gameW - myPlaneW;
+		}
+		if(last_myPlane_top <= 0){
+			last_myPlane_top = 0;
+		}else if(last_myPlane_top >= gameH - myPlaneH){
+			last_myPlane_top = gameH - myPlaneH;
+		}
+		myPlane.style.left = last_myPlane_left + "px";
+		myPlane.style.top = last_myPlane_top + "px";
+	}
+	// Create bullets per unit of time
+	function shot(){
+		if(a) return ;
+		a = setInterval(function(){
+			// Creat bullet
+			createBullet();
+		},100);
+	}
+	function createBullet(){
+		var bullet = new Image();
+		bullet.src = "image/bullet1.png";
+		bullet.className = "b";
+		// Creating each bullet requires the position of the plane
+		var myPlaneL = getStyle(myPlane,"left")
+		,	myPlaneT = getStyle(myPlane,"top");
+		// find bullet creat position
+		var bulletL = myPlaneL + myPlaneW/2 - bulletW/2
+		,	bulletT = myPlaneT - bulletH;
+
+		bullet.style.left = bulletL + "px";
+		bullet.style.top = bulletT + "px";
+		bulletsP.appendChild(bullet);
+		bullets.push(bullet);
+		move(bullet,"top");
+	}
+	// Bullet motion: motion function (uniform motion)
+	function move(ele,attr){
+		var speed = -8;
+		ele.timer = setInterval(function(){
+			var moveVal = getStyle(ele,attr);
+			// Bullet movement out of the game interface: clear bullet timer, remove bullet elements
+			if(moveVal <= -bulletH){
+				clearInterval(ele.timer);
+				ele.parentNode.removeChild(ele);
+				bullets.splice(0,1);
+			}else{
+				ele.style[attr] = moveVal + speed + "px";
+			}
+		},10);
+	}
+	// Creat enemy plane object
+	var enemysObj = {
+		enemy1: {
+			width: 34,
+			height: 24,
+			score: 100,
+			hp: 100
+		},
+		enemy2: {
+			width: 46,
+			height: 60,
+			score: 500,
+			hp: 800
+		},
+		enemy3: {
+			width: 110,
+			height: 164,
+			score: 1000,
+			hp: 2000
+		}
+	}
+	// creat enemy timer
+	function appearEnemy(){
+		if(b) return ;
+		b = setInterval(function(){
+			// creat enemy plane
+			createEnemy();
+			// delete dead enemy
+			delEnemy();
+		},1000);
+	}
+	// function for creating enemy planes
+	function createEnemy(){
+		// The probability of enemy plane
+		var percentData = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,3];
+		// enemy plane type
+		var enemyType = percentData[Math.floor(Math.random()*percentData.length)];
+		// Get the current random enemy plane data
+		var enemyData = enemysObj["enemy" + enemyType];
+		// Create elements where enemy plane are located
+		var enemy = new Image(enemyData.width,enemyData.height);
+		enemy.src = "image/enemy" + enemyType + ".png";
+		enemy.t = enemyType;
+		enemy.score = enemyData.score;
+		enemy.hp = enemyData.hp;
+		enemy.className = "e";
+		enemy.dead = false; // enemy plane alive
+		// Determine the location of the current enemy aircraft
+		var enemyL = Math.floor(Math.random()*(gameW - enemyData.width + 1))
+		,	enemyT = -enemyData.height;
+		enemy.style.left = enemyL + "px";
+		enemy.style.top = enemyT + "px";
+		enemysP.appendChild(enemy);
+		enemys.push(enemy);
+		enemyMove(enemy,"top");
+	}
+	// enemy plane move
+	function enemyMove(ele,attr){
+		var speed = null;
+		if(ele.t == 1){
+			speed = 1.5;
+		}else if(ele.t == 2){
+			speed = 1;
+		}else if(ele.t == 3){
+			speed = 0.5;
+		}
+		ele.timer = setInterval(function(){
+			var moveVal = getStyle(ele,attr);
+			if(moveVal >= gameH){
+				clearInterval(ele.timer);
+				enemysP.removeChild(ele);
+				enemys.splice(0,1);
+			}else{
+				ele.style[attr] = moveVal + speed + "px";
+				// Every collision with every bullet is detected as each enemy plane moves
+				danger(ele);
+				// detect collision
+				gameOver();
+			}
+		},10);
+	}
+	// Remove all movement timers from enemy planes and bullets
+	function clear(childs){
+		for(var i=0;i<childs.length;i++){
+			clearInterval(childs[i].timer);
+		}
+	}
+	// Start the game after pausing the game
+	function reStart(childs,type){
+		for(var i=0;i<childs.length;i++){
+			type == 1 ? move(childs[i],"top") : enemyMove(childs[i],"top");
+		}
+	}
+	// The movement of the background image after starting the game
+	function bgMove(){
+		c = setInterval(function(){
+			backgroundPY += 0.5;
+			if(backgroundPY >= gameH){
+				backgroundPY = 0;
+			}
+			gameEnter.style.backgroundPositionY = backgroundPY + "px";
+		},10);
+	}
+	// Check bullets for collisions with enemy plane
+	function danger(enemy){
+		for(var i=0;i<bullets.length;i++){
+			// Get the top left margin of bullet
+			var bulletL = getStyle(bullets[i],"left")
+			,	bulletT = getStyle(bullets[i],"top");
+			// Get the top left margin of enemy
+			var enemyL = getStyle(enemy,"left")
+			,	enemyT = getStyle(enemy,"top");
+			// Get the width and height of enemy
+			var enemyW = getStyle(enemy,"width")
+			,	enemyH = getStyle(enemy,"height");
+			var condition = bulletL + bulletW >= enemyL && bulletL <= enemyL + enemyW && bulletT <= enemyT + enemyH && bulletT + bulletH >= enemyT;
+			if(condition){
+				//Collision of bullets with enemy plane: remove bullets
+				// 1、Clear the timer for the collision first
+				clearInterval(bullets[i].timer);
+				// 2、Delete element
+				bulletsP.removeChild(bullets[i]);
+				// 3、delete nullet from array
+				bullets.splice(i,1);
+				// 4、After the collision between the bullet and the enemy plane, the enemy plane's health will be reduced. When the health is 0, the enemy aircraft will be deleted
+				enemy.hp -= 100;
+				if(enemy.hp == 0){
+					// delete enemy plane
+					clearInterval(enemy.timer);
+					// replace explow image  
+					enemy.src = "image/bz" + enemy.t + ".gif";
+					// maek dead enemy plane
+					enemy.dead = true;
+					// caculate score
+					scores += enemy.score;
+					s.innerHTML = scores;
+				}
+			}
+		}
+	}
+	// When creating an enemy plane, deletes the dead enemy plane from the collection and documents
+	function delEnemy(){
+		for(var i=enemys.length - 1;i>=0;i--){
+			if(enemys[i].dead){
+				(function(index){
+					// Remove the deadly enemy element from the document
+					enemysP.removeChild(enemys[index]);
+					// Remove the deadly enemy element from the array
+					enemys.splice(index,1);
+				})(i)
+			}
+		}
+	}
+	// plane crush and game over
+	function gameOver(){
+		for(var i=0;i<enemys.length;i++){
+			if(!enemys[i].dead){ 
+				// detect collision
+				// 1、get the top left margin of enemy plane
+				var enemyL = getStyle(enemys[i],"left")
+				,	enemyT = getStyle(enemys[i],"top");;
+				// 2、get the width and height of enemy plane
+				var enemyW = getStyle(enemys[i],"width")
+				,	enemyH = getStyle(enemys[i],"height");
+				// 3、get the top left margin of player
+				var myPlaneL = getStyle(myPlane,"left")
+				,	myPlaneT = getStyle(myPlane,"top");
+				var condition = myPlaneL + myPlaneW >= enemyL && myPlaneL <= enemyL + enemyW && myPlaneT <= enemyT + enemyH && myPlaneT + myPlaneH >= enemyT;
+				if(condition){ // collision between player and enemy
+					clearInterval(a);
+					clearInterval(b);
+					clearInterval(c);
+					a = null;
+					b = null;
+					c = null;
+					// Remove bullets and enemy plane elements
+					remove(bullets);
+					remove(enemys);
+					// clear array
+					bullets = [];
+					enemys = [];
+					// Clear movement of player
+					document.onmousemove = null;
+					// pop up window for score：
+					alert("Game over: " + scores);
+					// go back to game start interface
+					gameStart.style.display = "block";
+					gameEnter.style.display = "none";
+					myPlane.style.left = "127px";
+					myPlane.style.top = gameH - myPlaneH + "px";
+				}
+			}
+		}
+	}
+	// delete elements
+	function remove(childs){
+		for(var i = childs.length - 1;i>=0;i--){
+			clearInterval(childs[i].timer);
+			childs[i].parentNode.removeChild(childs[i]);
+		}
+	}
+}
+	</script>
+</body>
+</html>
